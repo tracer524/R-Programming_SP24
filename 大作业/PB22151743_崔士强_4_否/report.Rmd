@@ -1,0 +1,524 @@
+---
+title: "北京市喜茶门店数据分析以及针对销量的模型预测"
+author: "崔士强 PB22151743"
+date: "2024-06-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 背景
+本数据记录了北京市喜茶门店的位置，消费，评分，评论数以及附近POI(Points Of Interest)的相关信息，具体属性如下所示
+
+### xicha_data.csv
+cityname：门店城市名，均为北京	
+
+type：喜茶所属类别，均为餐饮服务;冷饮店;冷饮店
+
+typecode：喜茶所属类别编码，均为50700	
+
+adname：喜茶门店所在行政区	
+
+name：喜茶门店全名	
+
+location：喜茶门店经纬度	
+
+cost：喜茶门店人均消费，单位元
+
+rating：喜茶门店人均评分	
+
+comments_num：：喜茶门店评论数
+
+### poi_data.csv
+uid：爬取数据所用的id
+
+name：POI名	
+
+store_name：POI所属的喜茶门店名
+
+location：POI经纬度	
+
+address：POI具体地址	
+
+area：POI所在行政区		
+
+distance：POI与门店距离	
+
+tag：POI类别-中文	
+
+type：POI类别-英文
+
+price：POI人均消费，单位元	
+
+overall_rating：POI人均评分	
+
+comment_num：POI评论数
+
+## 数据读取以及预处理
+```{r}
+library(tidyverse)
+```
+
+首先读取数据，查看前6行
+```{r}
+poi_data <- read.csv("poi_data.csv")
+head(poi_data)
+xicha_data <- read.csv("xicha_data.csv")
+head(xicha_data)
+```
+删除不需要的属性
+```{r}
+xicha_data <- xicha_data %>%
+  # 删除cityname, type, typecode列
+  select(-cityname, -type, -typecode) %>%
+  # 将经纬度数据分成两列
+  separate(location, into = c("longitude", "latitude"), sep = ",", convert = TRUE)
+
+poi_data <- poi_data %>%
+  # 删除uid, X列
+  select(-uid, -X) %>%
+  # 将price列转换为数值类型
+  mutate(price = as.numeric(price))
+```
+
+在对`NA`进行处理前，先统计共有多少行含有`NA`，再决定处理方法
+
+```{r}
+na_count_poi = sum(complete.cases(poi_data) == FALSE)
+na_count_xicha = sum(complete.cases(xicha_data) == FALSE)
+
+cat("POI数据集中含有NA的行数：", na_count_poi, "\n")
+cat("喜茶数据集中含有NA的行数：", na_count_xicha, "\n")
+```
+
+考虑到含`NA`的行过多，用均值、中位数、众数等填充可能会影响分析准确度，故暂时保留，后面进行数据分析时使用`na.rm = TRUE`参数在计算统计指标时排除这些缺失值，从而在保持数据完整性的同时，避免潜在的误导性分析。
+
+查看当前数据情况
+```{r}
+str(xicha_data)
+summary(xicha_data)
+```
+
+发现有一些指标中位数与均值相差较大，因此进行进一步检查。
+
+对`xicha_data`当中的数据进行偏度检查
+
+```{r}
+library(e1071)
+
+# cost的偏度
+cost_skewness <- skewness(xicha_data$cost, na.rm = TRUE)
+print(paste("Cost Skewness:", cost_skewness))
+
+# rating的偏度
+rating_skewness <- skewness(xicha_data$rating, na.rm = TRUE)
+print(paste("Rating Skewness:", rating_skewness))
+
+# comments_num的偏度
+comments_skewness <- skewness(xicha_data$comments_num, na.rm = TRUE)
+print(paste("Comments Number Skewness:", comments_skewness))
+```
+
+发现评论数量极度右偏，看一看极端数据的具体情况
+
+```{r}
+# 找到评论数最高的5行
+top_comments <- xicha_data %>%
+  arrange(desc(comments_num)) %>%
+  slice_head(n = 5)
+
+print(top_comments)
+```
+评论数极高的门店位于著名商业综合体，因此认为不属于异常值。
+
+再来看`poi_data`
+```{r}
+str(poi_data)
+summary(poi_data)
+```
+`price`明显有异常值，查看最大和最小的10行
+```{r}
+lowest_prices <- poi_data %>%
+  arrange(price) %>%
+  slice_head(n = 10)
+
+highest_prices <- poi_data %>%
+  arrange(desc(price)) %>%
+  slice_head(n = 10)
+
+print(lowest_prices)
+print(highest_prices)
+```
+去除`price`为负的行
+```{r}
+poi_data <- poi_data %>%
+  filter(price >= 0 | is.na(price))
+```
+
+## 初步分析
+
+下面对一些数据进行基本的统计
+```{r}
+xicha_stats <- xicha_data %>%
+  summarise(
+    Average_Cost = mean(cost, na.rm = TRUE),
+    Average_Rating = mean(rating, na.rm = TRUE),
+  )
+
+print(xicha_stats)
+
+poi_stats <- poi_data %>%
+  summarise(
+    Average_Price = mean(price, na.rm = TRUE),
+    Average_Rating = mean(overall_rating, na.rm = TRUE),
+  )
+
+print(poi_stats)
+```
+
+
+```{r}
+# 绘制 cost 的直方图
+ggplot(xicha_data, aes(x = cost)) +
+  geom_histogram(bins = 30, fill = "#69b3a2", color = "#1f2d86") +
+  ggtitle("喜茶门店人均消费直方图") +
+  xlab("人均消费（元）") +
+  ylab("频率") +
+  theme(text = element_text(family = "Hiragino Sans GB"))
+```
+
+可以看到人均消费非常集中，在30元左右
+```{r}
+# 绘制 rating 的直方图
+ggplot(xicha_data, aes(x = rating)) +
+  geom_histogram(bins = 20, fill = "#ff9999", color = "#333333") +
+  ggtitle("喜茶门店评分直方图") +
+  xlab("评分") +
+  ylab("频率") +
+  theme(text = element_text(family = "Hiragino Sans GB"))
+```
+
+评分均处于较高水平。
+
+数据中没有关于销量的信息，而评分并不由选址以及POI这些数据集侧重的因素决定，因此在后续分析中把评论数作为销量的代理指标，接下来看评论数的分布
+```{r}
+# 绘制 comments_num 的直方图
+ggplot(xicha_data, aes(x = comments_num)) +
+  geom_histogram(bins = 30, fill = "#ffc0cb", color = "#000000") +
+  ggtitle("喜茶门店评论数量直方图") +
+  xlab("评论数") +
+  ylab("频率") +
+  theme(text = element_text(family = "Hiragino Sans GB"))
+```
+
+评论数大部分集中在1000以下，少数具有远高于中位数的值。
+
+```{r}
+# 绘制 adname 列的条形图
+ggplot(xicha_data, aes(x = adname)) +
+  geom_bar(fill = "#56B4E9", color = "#404040") +
+  ggtitle("喜茶门店所在行政区分布") +
+  xlab("行政区") +
+  ylab("门店数量") +
+  theme(text = element_text(family = "Hiragino Sans GB"),
+        axis.text.x = element_text(angle = 45, hjust = 1))  # X轴标签倾斜
+```
+
+在行政区的分布上，大多数门店都集中在中心城区（东城，西城，朝阳，海淀，大兴，石景山），郊区门店较少。我们也可以根据经纬度信息把门店标注在地图上。
+
+```{r}
+library(leaflet)
+
+leaflet(xicha_data) %>% 
+  addTiles() %>% 
+  addCircles(lng = ~longitude, lat = ~latitude, weight = 1,
+             radius = 50, color = "#FF0000", fillOpacity = 0.8,
+             popup = ~paste("门店名:", name, "<br>", "评分:", rating))
+
+```
+
+注意到POI有不同tag和type，可以对这两个属性进行统计
+
+```{r}
+# 绘制type列的条形图
+ggplot(poi_data, aes(x = type)) +
+  geom_bar(fill = "steelblue") +
+  labs(title = "POI type频数分布", x = "类型", y = "频数") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 0.5), # 旋转X轴标签以便阅读
+        text = element_text(family = "Hiragino Sans GB"))
+
+# 拆分tag列
+tags_split <- poi_data %>%
+  mutate(tags = strsplit(as.character(tag), ";")) %>%
+  unnest_longer(col = tags)
+
+# 统计每个标签的频数，并过滤频数小于400的标签
+tag_counts <- tags_split %>%
+  group_by(tags) %>%
+  summarise(count = n(), .groups = 'drop') %>%
+  filter(count >= 400) %>%  # 过滤
+  arrange(desc(count))
+
+# 绘制tag条形图
+ggplot(tag_counts, aes(x = reorder(tags, count), y = count)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(title = "POI tag频数分布（频数 ≥ 400）", x = "标签", y = "频数") +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1),
+        text = element_text(family = "Hiragino Sans GB"))
+```
+
+可以发现，出现最多的是公司、美食类POI。POI类型和距离具体与销量（以评论数反映）有何联系在接下来的部分中进行分析。
+
+## 深入分析
+上面是一些笼统的统计数据，接下来我们试图分析更具体，更有商业价值的数据。在此之前，先对平均分进行处理。
+考虑到评论数较少时平均分并不能反映真实情况，这里采用贝叶斯平均。
+
+```{r}
+# 计算xicha_data的平均评分和评论数
+avg_score_xicha <- mean(xicha_data$rating, na.rm = TRUE)
+avg_num_xicha <- mean(xicha_data$comments_num, na.rm = TRUE)
+
+# 计算贝叶斯平均
+xicha_data$bayesian_avg <- ((avg_score_xicha * avg_num_xicha) + (xicha_data$rating * xicha_data$comments_num)) / (avg_num_xicha + xicha_data$comments_num)
+
+# 查看更新后的数据
+head(xicha_data)
+
+# 计算poi_data的平均评分和评论数
+avg_score_poi <- mean(poi_data$overall_rating, na.rm = TRUE)
+avg_num_poi <- mean(poi_data$comment_num, na.rm = TRUE)
+
+# 计算贝叶斯平均
+poi_data$bayesian_avg <- ((avg_score_poi * avg_num_poi * 0.5) + (poi_data$overall_rating * poi_data$comment_num)) / (0.5 * avg_num_poi + poi_data$comment_num)
+
+# 查看更新后的数据
+head(poi_data)
+```
+
+之后我们把两个数据框合并，以便接下来的分析。
+
+```{r}
+# 为poi_data中除store_name外的所有列添加前缀
+poi_data_prefixed <- poi_data %>%
+  rename_with(.fn = ~paste0("poi_", .), .cols = -store_name)
+
+# 合并数据框
+combined_data <- xicha_data %>%
+  left_join(poi_data_prefixed, by = c("name" = "store_name"))
+
+# 查看合并后的数据框
+print(head(combined_data))
+str(combined_data)
+```
+
+
+```{r}
+selected_data <- combined_data %>%
+  select(name, comments_num, bayesian_avg, poi_distance, poi_type) %>%
+  na.omit()
+summary(selected_data)
+```
+
+观察数据可以发现，tag的多样性非常丰富，考虑到处理成独热编码后可能导致的数据框尺度大幅增长以及数据不足，选择type进行分析。
+
+首先将`poi_type`列进行独热编码，并与原始数据合并
+```{r}
+selected_data <- selected_data %>%
+  mutate(poi_type = as.factor(poi_type)) %>%
+  group_by(name, poi_type) %>%
+  mutate(count = n()) %>%
+  ungroup() %>%
+  pivot_wider(names_from = poi_type, values_from = c(count, poi_distance), 
+              names_sep = "_", values_fn = list(count = mean, poi_distance = mean), 
+              values_fill = list(count = 0, poi_distance = NA))
+
+store_features <- selected_data %>%
+  group_by(name) %>%
+  summarise(across(starts_with("count"), sum, na.rm = TRUE),
+            across(starts_with("poi_distance"), mean, na.rm = TRUE),
+            Comments_Num = first(comments_num)) %>%
+  select(-poi_distance_, -count_) %>%
+  na.omit()
+
+print(head(store_features))
+```
+
+进行标准化
+```{r}
+# 数据标准化
+normalized_data <- store_features %>%
+  select(starts_with("poi_distance"), starts_with("count")) %>%  # 聚类特征
+  scale() # 标准化特征
+
+# 查看标准化后的数据
+head(normalized_data)
+```
+进行k-means聚类分析，聚类数设为4
+```{r}
+library(factoextra)
+k <- 4  # 聚类数
+final_cluster <- kmeans(normalized_data, centers = k, nstart = 25)
+
+# 将聚类结果添加到原始数据中
+store_features$cluster <- as.factor(final_cluster$cluster)
+
+# 查看聚类结果
+aggregate(Comments_Num ~ cluster, data = store_features, mean)
+
+# 可视化
+fviz_cluster(final_cluster, data = normalized_data)
+```
+
+发现类别1和4的评论数显著较高，我们以类别分组，观察POI类型和距离的特征
+```{r}
+# 每个聚类中每种POI类型的平均数目
+poi_averages <- store_features %>%
+  group_by(cluster) %>%
+  summarise(across(starts_with("count_"), mean, na.rm = TRUE)) %>%
+  pivot_longer(cols = starts_with("count_"), names_to = "poi_type", values_to = "average_count")
+
+# 修正POI类型的名称，去掉前缀以简化显示
+poi_averages$poi_type <- sub("count_", "", poi_averages$poi_type)
+
+# 绘制柱状图
+ggplot(poi_averages, aes(x = poi_type, y = average_count, fill = as.factor(cluster))) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  scale_fill_brewer(palette = "Set1", name = "Cluster") +
+  labs(title = "基于聚类的各类别POI数目",
+       x = "POI Type",
+       y = "平均数目") +
+  theme_minimal() +
+  theme(text = element_text(family = "Hiragino Sans GB"),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+可以看到评论数最多的1类，其POI数目反而不是最多，处于中间偏上的位置，这个规律对绝大多数type均适用。
+
+推测这种情况的原因是：
+1. POI过少可能和商圈热度不高有关
+2. POI过多时形成竞争，影响销量
+```{r}
+# 每个聚类中每种POI类型的平均距离
+poi_distance_averages <- store_features %>%
+  group_by(cluster) %>%
+  summarise(across(starts_with("poi_distance_"), mean, na.rm = TRUE)) %>%
+  pivot_longer(cols = starts_with("poi_distance_"), names_to = "poi_type", values_to = "average_distance")
+
+poi_distance_averages$poi_type <- sub("poi_distance_", "", poi_distance_averages$poi_type)
+
+ggplot(poi_distance_averages, aes(x = poi_type, y = average_distance, fill = as.factor(cluster))) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  scale_fill_brewer(palette = "Set1", name = "Cluster") +
+  labs(title = "基于聚类的各类别POI平均距离",
+       x = "POI Type",
+       y = "平均距离 (m)") +
+  theme_minimal() +
+  theme(text = element_text(family = "Hiragino Sans GB"),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+对于POI距离，很明显1类和4类平均距离更近，而这个差别对于不同type的POI有所不同，同时有些type影响不大，例如scope, house；有些type体现的相对明显，如beauty, hospital。
+
+聚类分析仍然相对笼统，下面我们采取机器学习的方法，试图建立预测模型，从而更好地指导新店选址。
+
+## 建立预测模型
+
+很明显我们需要拟合的关系并非线性，这里我们选用决策树模型。
+
+```{r}
+library(rpart)
+library(rpart.plot)
+```
+
+使用随机抽样的方式将数据集分割为训练集和验证集，比例分别为70%和30%。另外需要去除店名和之前聚类分析得到的cluster，前者与预测无关，后者会对预测产生不应有的影响。
+
+```{r}
+set.seed(123)  # 设置随机种子
+
+quantiles <- quantile(store_features$Comments_Num, probs = c(0.25, 0.5, 0.75), na.rm = TRUE)
+
+# 使用cut函数进行分组
+store_features$comments_num_group <- cut(store_features$Comments_Num, 
+                breaks = c(0, quantiles[1], quantiles[2], quantiles[3], 5000, 10000, Inf),
+                labels = c("1", "2", "3", "4", "5", "6"),
+                include.lowest = TRUE)
+
+# 查看分组结果
+table(store_features$comments_num_group)
+
+# 去除店名和cluster两列
+store_features <- store_features %>%
+  select(-name, -cluster)
+
+# 计算训练集的大小
+train_size <- floor(0.7 * nrow(store_features))
+
+# 创建随机排列以分割数据集
+train_indices <- sample(seq_len(nrow(store_features)), size = train_size)
+
+# 分割数据集
+train_data <- store_features[train_indices, ]
+test_data <- store_features[-train_indices, ]
+```
+
+接下来建立模型并进行预测
+```{r}
+# 构建决策树模型
+tree_model <- rpart(comments_num_group ~ ., data = train_data, method = "class")
+
+# 在验证集上使用模型进行预测
+predictions <- predict(tree_model, newdata = test_data)
+predicted_classes <- max.col(predictions, ties.method = "first")
+actuals <- test_data$comments_num_group
+```
+
+最后检验模型效果
+```{r}
+library(caret)
+
+# 需要将预测类别和实际类别转换为因子类型，并确保它们有相同的水平
+predicted_classes <- factor(predicted_classes, levels = unique(actuals))
+actuals <- factor(actuals, levels = unique(actuals))
+
+# 计算混淆矩阵
+conf_matrix <- confusionMatrix(predicted_classes, actuals)
+
+# 打印混淆矩阵
+print(conf_matrix$table)
+
+# 提取各项指标
+accuracy <- conf_matrix$overall['Accuracy']
+precision <- conf_matrix$byClass['Precision']
+recall <- conf_matrix$byClass['Recall']
+F1 <- conf_matrix$byClass['F1']
+
+# 打印结果
+print(paste("Accuracy:", accuracy))
+print(paste("Precision:", precision))
+print(paste("Recall:", recall))
+print(paste("F1 Score:", F1))
+```
+精确率和召回率为`NA`是因为有些类别根本没有正例，导致分母为零。假如忽略没有正例的类别6，并按支持度加权，所得精确率为0.8947，召回率为0.9474，F1分数为0.9203.
+
+从上面的数据可以看出模型的预测效果比较好，若想在某处增加新店，可以根据该位置POI数据和模型预测销量。
+
+## 总结及心得
+
+### 分析成果
+
+以上的分析主要有以下几个方面的成果：
+
+1.针对各项属性进行了总结，展示了消费，位置，评论数等的分布
+
+2.着重于评论数（作为销量的代理指标），POI的类别、距离进行了聚类分析，发现了销量与POI类别以及距离的关系
+
+3.利用机器学习建立了基于决策树的预测模型，给定各个POI类型的数目以及平均距离，预测销量。经检验模型预测效果较好，可作为新店选址的依据。
+
+### 心得体会
+数据分析的实操过程比预想中要多很多困难，包括数据预处理，模型建立等。例如处理数据时为了后续分析需要转换为独热向量，最初选取的特征较多，也没有很好的处理`NA`值，后来经多次摸索，保留了关系较大的特征。
+
+另外在分析过程中也尝试过一些其他手段，例如Apriori算法挖掘频繁项集。这是挖掘属性间关系的一种有效手段，但算法始终无法正常运行，遂放弃。另外也尝试了利用支持向量机(SVM)进行拟合，因为这种模型在中小型数据集上表现良好，适合这里的数据（只有几十家门店），但因为某些我未能发现的原因，实际运行的准确度很低，参数优化也未能收敛，因此也没有采用。
+
+总的来说，利用R语言进行数据分析的技术得到了提升。以往的数据分析几乎都是使用Python，通过这门课程以及上面的数据分析过程，掌握了一种不同的分析工具。

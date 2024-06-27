@@ -1,0 +1,30 @@
+---
+title: "Lab1"
+output: html_document
+date: "2024-03-07"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+崔士强 PB22151743
+
+```{r echo=TRUE}
+## 向量
+a <- c(3, 5, 10, 5, 6)
+a[1]
+
+## 画图
+x <- seq(0,2*pi,0.01)
+plot(sin(x))
+
+
+## 安装包
+if (!require("BeSS")) install.packages("BeSS")
+library(BeSS)
+
+data <- gen.data(n=500, p=20, family = "gaussian", K=10)
+fit  <- bess(data$x, data$y)
+print(fit)
+```

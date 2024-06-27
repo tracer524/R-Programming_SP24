@@ -1,0 +1,160 @@
+---
+title: "Lab4"
+author: "崔士强 PB22151743"
+date: "2024-04-19"
+output: html_document
+---
+
+## ggplot2
+```{r}
+d <- read.csv("covid19.csv")
+d[,"入院时间"] <- as.Date(as.character(d[,"入院时间"]), format = "%Y%m%d")
+d[,"出院时间"] <- as.Date(as.character(d[,"出院时间"]), format = "%Y%m%d")
+library(dplyr, warn.conflicts = FALSE)
+d[d$住院时间<0,"入院时间"] <- as.Date("2020-02-05")
+d <- d %>% mutate(住院时间 = as.numeric(出院时间 - 入院时间) + 1)
+```
+
+### 1.
+```{r}
+library(ggplot2, warn.conflicts = FALSE)
+ggplot(d, aes(x=分型, y=年龄)) +
+  scale_fill_manual(values=c("#F8766D", "#02BFC4")) +
+  geom_violin(aes(fill=分型)) +
+  geom_jitter(aes(fill=分型), size=0.5) +
+  geom_boxplot(width=0.2) +
+  labs(fill="分型") +
+  theme(text = element_text(family = "STHeiti"),
+        axis.title = element_text(family = "STHeiti"),
+        axis.text = element_text(family = "STHeiti"))
+```
+
+### 2.
+```{r}
+library(Hmisc, warn.conflicts = FALSE)
+ggplot(d, aes(x=分型, y=住院时间, fill=分型)) +
+  scale_fill_manual(values=c("#F8766D", "#02BFC4")) +
+  geom_boxplot(aes(fill=分型), width=0.8, alpha=0.7) +
+  stat_summary(fun.data=mean_sdl, 
+               fun.args = list(mult=1),
+               geom="errorbar", 
+               aes(colour=分型), 
+               width=0.2, 
+               linewidth=1.5, 
+               show.legend = FALSE, 
+               alpha=0.7) +
+  stat_summary(fun=mean, 
+               geom="point", 
+               shape=18, 
+               size=10, 
+               color="white") +
+  theme(text = element_text(family = "STHeiti"),
+        axis.title = element_text(family = "STHeiti"),
+        axis.text = element_text(family = "STHeiti"))
+```
+
+### 3.
+```{r}
+ggplot(d, aes(x=年龄, y=住院时间, size=入院时间, color=入院时间)) +
+  geom_point(aes(color=入院时间, size=入院时间), alpha=0.7) +
+  guides(
+    color=guide_colourbar(title="入院时间", 
+                          title.position="top", 
+                          title.hjust=0.5),
+    size=guide_legend(override.aes=list(shape=21, fill=NA))
+  ) +
+  scale_color_date() +
+  scale_size_date() +
+  theme(legend.position="right",
+        text = element_text(family = "STHeiti"),
+        axis.title = element_text(family = "STHeiti"),
+        axis.text = element_text(family = "STHeiti"))
+```
+
+
+## 程序控制结构
+### 1.
+```{r}
+sequence <- seq(-1, 1, 0.2)
+abs <- ifelse(sequence < 0, -sequence, sequence)
+```
+### 2.
+```{r}
+dates <- as.POSIXct(c("1981-05-31", "2020-02-22"))
+# 元素遍历
+for(date in dates){
+  print(date)
+}
+
+# 下标遍历
+for (i in 1:length(dates)) {
+    print(dates[i])
+}
+```
+### 3.
+```{r}
+n <- 1
+while (log(n) <= 2) {
+    print(log(n))
+    n <- n + 1
+}
+n <- 1
+repeat {
+    log_value <- log(n)
+    if (log_value > 2) {
+        break
+    }
+    print(log_value)
+    n <- n + 1
+}
+```
+### 4.
+```{r}
+random_numbers <- replicate(100, rnorm(1))
+
+mean <- mean(random_numbers)
+variance <- var(random_numbers)
+
+print(paste("Mean:", mean))
+print(paste("Variance:", variance))
+```
+
+
+## 函数
+### 1.
+```{r}
+psi <- function(x) {
+  ifelse(abs(x) <= 1, x^2, 2 * abs(x) - 1)
+}
+
+par(mar = c(5, 5, 4, 2) + 0.1)
+curve(psi, from = -5, to = 5, col = "blue", lwd = 2, 
+      ylab = "ψ(x)", xlab = "x", main = "Graph of ψ(x)")
+grid(nx = NULL, ny = NULL, col = "gray", lty = "dotted")
+```
+
+### 2.
+```{r}
+# 定义函数
+S_kn <- function(k, n) {
+  sum(1 / (1:n)^k)
+}
+n <- 5000000
+k_values <- 2:21
+
+# 不使用并行
+system.time({
+  results_non_parallel <- sapply(k_values, S_kn, n = n)
+})
+
+# 使用并行
+library(parallel, warn.conflicts = FALSE)
+no_cores <- detectCores()
+cl <- makeCluster(no_cores)
+system.time({
+  clusterExport(cl, varlist = c("n", "S_kn"))
+  results_parallel <- parSapply(cl, k_values, S_kn, n = n)
+})
+stopCluster(cl)
+```
+

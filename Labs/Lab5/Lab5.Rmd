@@ -1,0 +1,78 @@
+---
+title: "Lab5"
+author: "崔士强"
+date: "2024-05-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 函数
+### 1.
+```{r}
+psi <- function(x) {
+  ifelse(abs(x) <= 1, x^2, 2 * abs(x) - 1)
+}
+
+par(mar = c(5, 5, 4, 2) + 0.1)
+curve(psi, from = -5, to = 5, col = "blue", lwd = 2, 
+      ylab = "ψ(x)", xlab = "x", main = "Graph of ψ(x)")
+grid(nx = NULL, ny = NULL, col = "gray", lty = "dotted")
+```
+
+### 2.
+```{r}
+# 定义函数
+S_kn <- function(k, n) {
+  sum(1 / (1:n)^k)
+}
+n <- 5000000
+k_values <- 2:21
+
+# 不使用并行
+system.time({
+  results_non_parallel <- sapply(k_values, S_kn, n = n)
+})
+
+# 使用并行
+library(parallel, warn.conflicts = FALSE)
+no_cores <- detectCores()
+cl <- makeCluster(no_cores)
+system.time({
+  clusterExport(cl, varlist = c("n", "S_kn"))
+  results_parallel <- parSapply(cl, k_values, S_kn, n = n)
+})
+stopCluster(cl)
+```
+
+### 3.
+1).
+```{r}
+random_walk <- function(N, x0, mu, variance) {
+  zt <- rnorm(N, mean = 0, sd = sqrt(variance))
+  xt <- numeric(N)
+  xt[1] <- x0 + mu + zt[1]
+  for (t in 2:N) {
+    xt[t] <- xt[t-1] + mu + zt[t]
+  }
+  return(xt)
+}
+```
+
+2).
+```{r}
+set.seed(123)
+series1 <- random_walk(100, 10, 0, 0.0004)
+series2 <- random_walk(100, 10, 0, 0.0004)
+```
+
+3).
+```{r}
+plot(series1, type = "l", col = "blue", xlab = "Time", ylab = "X_t",
+     main = "Random Walk Time Series", ylim = range(c(series1, series2)))
+lines(series2, col = "red")
+legend("topright", legend = c("Series 1", "Series 2"), col = c("blue", "red"), lty = 1)
+```
+

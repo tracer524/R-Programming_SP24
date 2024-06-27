@@ -1,0 +1,132 @@
+---
+title: "Lab3"
+author: "崔士强 PB22151743"
+date: "2024-04-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R处理数据
+### 1.
+```{r}
+d <- read.csv("covid19.csv")
+```
+### 2.
+```{r}
+str(d)
+```
+### 3.
+```{r}
+library(dplyr)
+d <- d %>% filter(入院时间 <= 出院时间)
+d <- d %>% mutate(住院时间 = as.numeric(出院时间 - 入院时间) + 1)
+```
+### 4.
+```{r}
+d$性别[d$性别 == ""] <- NA
+d[!complete.cases(d), ]
+```
+### 5.
+```{r}
+head(d, 5)
+tail(d, 2)
+```
+### 6.
+```{r}
+d %>%
+  arrange(as.Date(出院时间, format="%Y-%m-%d")) %>%
+  head(5)
+```
+### 7.
+```{r}
+d_extra <- read.csv("covid19-2.csv")
+d2 <- full_join(d, d_extra, by = "序号")
+```
+### 8.
+```{r}
+mean(d$疗程, na.rm = TRUE)
+```
+### 9.
+```{r}
+d <- d %>% filter(!is.na(性别))
+d %>%
+  group_by(分型) %>%
+  count(性别)
+```
+## R基本画图
+```{r}
+library(ggplot2)
+```
+
+### 1.
+```{r}
+par(family = "STHeiti")
+gender_freq <- table(d$性别)
+barplot(gender_freq, main = "性别分布")
+```
+
+### 2.
+```{r}
+par(family = "STHeiti")
+gender_type_table <- table(d$性别, d$分型)
+barplot(gender_type_table, beside = TRUE, legend = TRUE)
+```
+
+### 3.
+```{r}
+par(family = "STHeiti")
+hist(d$年龄, prob = TRUE, col = rainbow(10))
+lines(density(d$年龄), col = "blue")
+```
+
+### 4.
+```{r}
+par(family = "STHeiti")
+boxplot(年龄 ~ 性别, data = d, xlab = "性别", ylab = "年龄")
+```
+
+### 5.
+```{r}
+par(family = "STHeiti")
+sex_colors <- c("男" = "blue", "女" = "pink")
+plot(d$疗程, d$年龄,
+     col = ifelse(d$性别 == "男", sex_colors["男"], sex_colors["女"]),
+     pch = 19, 
+     cex = (d$入院时间-20200000)/70)
+```
+
+### 6.
+```{r}
+par(family = "STHeiti")
+qqnorm(d$年龄)
+qqline(d$年龄)
+```
+
+可以看到在30至70岁的区间上基本符合正态分布
+
+### 7.
+```{r}
+par(family = "STHeiti")
+x <- seq(-pi, pi, length.out = 100)
+plot(x, sin(x), type = "l", col = "red", ylim = c(-1, 1))
+lines(x, cos(x), col = "blue")
+legend("topright", legend = c("sin(x)", "cos(x)"), col = c("red", "blue"), lty = 1)
+text(pi, 0.5, expression(sin(x)))
+text(pi, -0.5, expression(cos(x)))
+```
+
+### 8.
+```{r}
+par(family = "STHeiti")
+par(mfrow = c(2, 2))
+boxplot(d$年龄, main = "箱线图")
+hist(d$年龄, main = "直方图", prob = TRUE)
+lines(density(d$年龄), col = "blue")
+qqnorm(d$年龄)
+qqline(d$年龄)
+par(mfrow = c(1, 1))
+```
+

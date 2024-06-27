@@ -1,0 +1,100 @@
+---
+title: "Lab2"
+output: html_document
+date: "2024-03-22"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### 崔士强 PB22151743
+
+## R语言入门
+
+### 1.
+```{r}
+cat("8的平方是", 8^2, file = "lab2.txt", sep = "")
+```
+
+### 2.
+```{r}
+typeof(1)
+as.character(1)
+```
+### 3.
+```{r}
+5 %/% 2 # 整数部分
+5 %% 2  # 余数部分
+```
+### 4.
+```{r}
+ceiling(asin(1))
+```
+### 5.
+```{r}
+str = "Applied Statistical Software"
+nchar(str)
+toupper(str)
+```
+### 6.
+```{r}
+vec <- c("22万", "30万", "50万", "120万", "11万")
+vec_num <- as.numeric(gsub("万", "0000", vec))
+mean(vec_num)
+```
+### 7.
+```{r}
+paste("Spider", "Man", "does", "whatever", sep = ", ")
+```
+### 8.
+```{r}
+strsplit("北京，上海，广州，深圳，合肥", "，")[[1]]
+```
+### 9.
+```{r}
+as.Date("2021/9/9") - as.Date("2020/9/9")
+```
+## R的数据结构
+### 1.
+```{r}
+vec <- seq(5, 25, by=5)
+vec[vec > 9 & vec < 20]
+```
+### 2.
+```{r}
+set1 <- c(1, 2, 3, 2)
+set2 <- c(1, 2)
+intersect(set1, set2)
+union(set1, set2)
+setdiff(set1, set2)
+```
+### 3.
+```{r}
+A <- matrix(1:9, nrow=3, byrow=TRUE)
+B <- diag(1:3)
+rbind(A, solve(B))
+cbind(A, solve(B))
+```
+### 4.
+```{r}
+C <- t(A) %*% B
+which(C == min(C), arr.ind = TRUE)
+```
+### 5.
+```{r}
+arr <- array(1:24, dim = c(2,3,4))
+arr[ , 3, 2:3, drop = FALSE]
+```
+### 6.
+```{r}
+lst <- list(family = "exponential", mean = 7, is.symmetric = FALSE)
+lst$was.estimated <- NULL
+```
+### 7.
+```{r}
+df <- data.frame(X1=c(1,2), X2=c(3,4), X3=c(5,6), logicals=c(TRUE,FALSE), character=c("男","女"), row.names=c("R1", "R2"))
+df$data <- as.Date(c("2021/09/10", "2021/09/14"))
+df[df$character=="男", 3:5]
+```
+

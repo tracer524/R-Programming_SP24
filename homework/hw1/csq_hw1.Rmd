@@ -1,0 +1,237 @@
+---
+title: "第一次作业"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 数值型数据
+### 1. 
+整数型. 1为数值，L代表这个数是integer类型而不是numerical.
+
+### 2. 
+```{r}
+# 计算log2(sin(π/3))
+log_value <- log(sin(pi / 3), base = 2)
+print(paste("计算结果:", log_value))
+
+# 向下取整
+floor_value <- floor(log_value)
+print(paste("向下取整:", floor_value))
+
+# 判断数据类型
+data_type <- class(floor_value)
+print(paste("数据类型:", data_type))
+
+# 转换为字符类型
+char_value <- as.character(floor_value)
+print(paste("转换为字符:", char_value))
+```
+### 3. 
+```{r}
+print(sqrt(3) == tan(pi / 3))
+print(all.equal(tan(pi / 3), sqrt(3)))
+print(identical(sqrt(3), tan(pi / 3)))
+```
+`==`和`identical()`判断数值是否完全相等，由于浮点数运算的误差，返回结果为`FALSE`. 
+而`all.equal`判断时有一定容错，误差在容错范围内则返回`TRUE`.
+
+### 4.
+```{r}
+print((1:100)[which(!((1:100) %% 2 | (1:100) %% 3))])
+```
+
+## 字符型数据
+### 1.
+```{r}
+str = "University of Science and Technology of China"
+gsub('[a-f]+', '', str)
+```
+
+### 2.
+```{r}
+str = "中国科学技术大学中的实用统计软件课程appstat2024"
+print(nchar(str))
+print(substr(str, 11, 16))
+```
+
+### 3.
+报错信息：
+
+> ! non-numeric argument to binary operator
+
+原因是对向量中第五个元素进行运算，即`"1" + 2000`不合法，`+`运算符不可以对字符串进行运算. 更改后的表达式应为：
+```{r}
+c(1, 1, 2, 3, 1) + 2000
+```
+
+### 4.
+```{r}
+x <- '1A3c5d'
+strtoi(unlist(strsplit(x, '[a-zA-Z]')))
+```
+
+## 日期时间类型数据
+```{r}
+date_bir <- "1961/3/1"
+date_dis <- "2022年1月1日"
+```
+### 1.
+```{r}
+date_bir_date <- as.Date(date_bir)
+print(date_bir_date)
+date_bir_posix <- as.POSIXct(date_bir)
+print(date_bir_posix)
+date_dis_date <- as.Date(date_dis, format = "%Y年%m月%d日")
+print(date_dis_date)
+date_dis_posix <- as.POSIXct(date_dis, format = "%Y年%m月%d日")
+print(date_dis_posix)
+```
+### 2.
+```{r}
+# 获取出生年份
+birth_year <- format(date_bir_date, "%Y")
+print(birth_year)
+# 获取出生月份
+birth_month <- format(date_bir_date, "%m")
+print(birth_month)
+```
+### 3.
+```{r}
+# 获取发病年份
+dis_year <- format(date_dis_date, "%Y")
+age <- as.numeric(dis_year) - as.numeric(birth_year)
+
+# 判断是否过生日
+if(format(date_dis_date, "%m-%d") < format(date_bir_date, "%m-%d")) {
+  age <- age - 1
+}
+
+print(age)
+
+# 保存到文件
+sink("test.txt")
+print(paste("发病时年龄:", age))
+sink()
+```
+### 4.
+```{r}
+date_dis_monyy <- format(date_dis_posix, "%b%y")
+print(date_dis_monyy)
+```
+### 5.
+```{r}
+# 使用seq()生成未来10次复诊时间
+follow_up_dates <- seq(from = date_dis_posix, by = "1 week", length.out = 11)[-1] # 移除第一个日期（即发病日）
+
+print(follow_up_dates)
+```
+## 因子类型数据
+```{r}
+x <- factor(c("男", "女", "男", "女"))
+```
+### 1.
+2个，分别为"男"和"女".
+
+### 2.
+```{r}
+levels(x) <- c("F", "M")
+cat(x, file = "factor.txt")
+```
+### 3.
+```{r}
+y <- factor(c("大一", "大四", "大三", "大二"), levels = c("大一", "大二", "大三", "大四"), ordered = TRUE)
+```
+## 向量
+### 1.
+```{r}
+x <- c(100, 65, 80, 79, 88, 95, 93, 35, 56, 68)
+```
+### 2.
+```{r}
+sort(x, TRUE)
+max(x)
+min(x)
+median(x)
+# 降序第三位为第三大的元素
+sort(x, TRUE)[3]
+# 升序第三位为第三小的元素
+sort(x)[3]
+```
+### 3.
+```{r}
+mean(x)
+sd(x)
+var(x)
+```
+### 4.
+```{r}
+length(which(x > 60))
+```
+### 5.
+```{r}
+# 生成字符向量
+cname <- rep("PB", length(x))
+cname <- paste(cname, as.character(1:length(x)), sep="")
+
+names(x) <- cname
+```
+### 6.
+```{r}
+# 获取奇数列作为下标访问
+x[seq(1, length(x), 2)]
+```
+### 7.
+```{r}
+x[!(x %% 2)]
+```
+## 矩阵和数组
+### 1.
+```{r}
+m <- diag(1:10, 10, 10)
+```
+### 2.
+```{r}
+solve(m)
+solve(m, x)
+```
+### 3.
+```{r}
+m[2, 1:10 != 2] <- rep(100, 9)
+```
+### 4.
+```{r}
+m[5,9]
+m[5,9] <- NA
+```
+### 5.
+```{r}
+# 生成字符向量
+col_name <- rep("c", 10)
+col_name <- paste(col_name, as.character(1:10), sep="")
+
+colnames(m) = col_name
+```
+### 6.
+```{r}
+m2 <- rbind(m, x)
+```
+### 7.
+```{r}
+dim(m2)
+```
+### 8.
+```{r}
+rowMeans(m2, na.rm = TRUE)
+```
+### 9.
+```{r}
+arr <- array(dim = c(10, 10, 3))
+arr[,,1] <- m
+arr[,,2] <- 2 * m
+arr[,,3] <- 3 * m
+```

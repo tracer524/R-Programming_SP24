@@ -1,0 +1,111 @@
+---
+title: "csq_hw3"
+author: "崔士强"
+date: "2024-05-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## ggplot2
+
+### 1.
+```{r}
+library(ggplot2)
+library(ggforce)
+
+set.seed(123)
+n <- 5000
+points <- data.frame(x = runif(n), y = runif(n))
+points$inside <- with(points, x^2 + y^2 < 1)
+
+cumulative_sums <- cumsum(points$inside)
+estimates <- 4 * cumulative_sums / (1:n)
+
+ggplot(data = data.frame(x = 1:n, pi_est = estimates), aes(x, pi_est)) +
+  geom_line() +
+  geom_hline(yintercept = pi, linetype = "dashed", color = "gray") +
+  labs(x = "Number of Points", y = "Estimate of Pi")
+
+t <- seq(0, pi/2, length.out = 100)
+circle_data <- data.frame(m = cos(t), n = sin(t))
+
+ggplot(data = points, aes(x = x, y = y)) +
+  geom_point(aes(color = inside), alpha = 0.5, size = 1) +
+  labs(color = "Accepted")+
+  coord_fixed(xlim = c(0, 1), ylim = c(0, 1)) +  # Limiting to first quadrant
+  geom_segment(x = 0, y = 0, xend = 1, yend = 0) +
+  geom_segment(x = 0, y = 0, xend = 0, yend = 1) +
+  geom_path(data = circle_data, aes(x = m, y = n), colour = "black")
+```
+
+## 函数
+### 1.
+```{r}
+myfun <- function(x, lambda) {
+  ifelse(x > lambda, x - lambda,
+         ifelse(abs(x) <= lambda, 0, x + lambda))
+}
+
+x_values <- seq(-3, 3, by = 0.01)
+y_values <- sapply(x_values, myfun, lambda = 1)
+
+plot_data <- data.frame(x = x_values, y = y_values)
+
+ggplot(plot_data, aes(x = x, y = y)) +
+  geom_line() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "gray")
+```
+
+### 2.
+```{r}
+# Lasso solver function
+lasso_solver <- function(X, y, lambda, beta_start = c(0, 0), tolerance = 1e-6, max_iter = 1000) {
+  n <- nrow(X)
+  p <- ncol(X)
+  beta <- beta_start
+  beta_old <- rep(Inf, p)
+  iter <- 0
+
+  repeat {
+    for (j in 1:p) {
+      X_j <- X[, j]
+      num <- crossprod(X_j, y - X %*% beta + beta[j] * X_j)
+      denom <- crossprod(X_j, X_j)
+      beta[j] <- myfun(num / denom, lambda / denom)
+    }
+    
+    # Check for convergence
+    diff <- sum((beta - beta_old)^2)
+    if (diff < tolerance || iter >= max_iter) {
+      break
+    }
+    beta_old <- beta
+    iter <- iter + 1
+  }
+  
+  return(beta)
+}
+
+# Simulation to test the lasso_solver
+set.seed(123)
+beta_true <- c(1, 0)
+n <- 1000
+X <- matrix(rnorm(n*2), n, 2)
+y <- X %*% beta_true + rnorm(n, 0, 0.5)
+
+# Different lambdas and initial beta values
+lambdas <- c(0.1, 1, 10)
+initial_betas <- list(c(0, 0), c(1, 1), c(-1, -1))
+
+# Perform tests
+for (lambda in lambdas) {
+  for (initial_beta in initial_betas) {
+    beta_hat <- lasso_solver(X, y, lambda, beta_start = initial_beta)
+    cat("Lambda:", lambda, "Initial Beta:", toString(initial_beta), "Estimated Beta:", toString(beta_hat), "\n")
+  }
+}
+```
+

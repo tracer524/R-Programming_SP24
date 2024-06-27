@@ -1,0 +1,121 @@
+---
+title: "崔士强_hw2"
+output: html_document
+date: "2024-03-25"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 列表
+```{r}
+score <- list(name="李明", id = "PB1", age=19, scores=c(85, 76, 90))
+```
+### 1.
+```{r}
+age <- score$age
+birth_year <- 2024 - age
+print(birth_year)
+```
+```{r}
+y <- score$scores
+average_score <- mean(y)
+print(average_score)
+```
+```{r}
+score$is_excellent <- average_score > 85
+```
+## 数据框和处理数据
+### 1.
+```{r}
+library(dplyr)
+pat1 <- read.csv("covid19.csv", encoding = "UTF-8")
+pat1 %>% 
+  arrange(入院时间) %>% 
+  slice(1:3)
+```
+### 2.
+```{r}
+pat1$性别[pat1$性别 == ""] <- NA
+pat1 <- pat1 %>% filter(!is.na(性别))
+```
+### 3.
+```{r}
+# 按分型
+pat1 %>% group_by(分型) %>% summarise(出院人数 = n())
+
+# 按出院时间
+pat1 %>% group_by(出院时间) %>% summarise(出院人数 = n())
+```
+### 4.
+```{r}
+pat1 <- pat1 %>% filter(入院时间 <= 出院时间)
+
+pat1 <- pat1 %>% mutate(住院时间 = as.numeric(出院时间 - 入院时间) + 1)
+
+pat1_summary <- pat1 %>%
+  group_by(分型) %>%
+  summarise(
+    平均住院时间 = mean(住院时间),
+    最长住院时间 = max(住院时间),
+    最短住院时间 = min(住院时间)
+  )
+
+print(pat1_summary)
+```
+### 5.
+```{r}
+pat1 <- pat1 %>% 
+  mutate(年龄段 = cut(年龄, breaks = c(-Inf, 18, 45, 60, 70, Inf), labels = c("0-18", "19-45", "46-60", "61-70", "70以上")))
+```
+
+### 6.
+```{r}
+年龄性别分布 <- pat1 %>% 
+  count(年龄段, 性别) %>% 
+  mutate(百分比 = round(n / sum(n) * 100, 1))
+write.csv(年龄性别分布, "年龄性别分布.csv", row.names = FALSE)
+```
+### 7.
+```{r}
+pat2 <- read.csv("covid19-3.csv")
+colnames(pat2)
+head(pat2, 3)
+```
+### 8.
+```{r}
+pat <- full_join(pat1, pat2, by = "序号")
+```
+### 9.
+```{r}
+top3_jobs <- pat %>%
+  count(职业) %>%
+  arrange(desc(n)) %>%
+  slice(1:3) %>%
+  pull(职业)
+
+pat %>%
+  filter(职业 %in% top3_jobs) %>%
+  group_by(职业) %>%
+  summarise(
+    住院时间不超过10天 = sum(住院时间 <= 10, na.rm = TRUE),
+    住院时间超过10天 = sum(住院时间 > 10, na.rm = TRUE),
+    平均年龄 = mean(年龄, na.rm = TRUE)
+  )
+```
+## 基本画图
+### 1.
+```{r}
+set.seed(123)
+par(family = "STHeiti")
+samples <- rnorm(1000, mean = 0, sd = 1)
+layout(matrix(1:2, nrow = 2, byrow = TRUE), heights = c(30, 10))
+par(mar = c(0, 4, 3, 4))
+hist(samples, prob = TRUE, main = "正态分布", xaxt = 'n', xlab = "", ylab = "", xlim = c(-3, 3), col = "gray")
+lines(density(samples), col = "red")
+par(mar = c(3, 4, 0, 4))
+boxplot(samples, horizontal = TRUE, col = "gray", xlab = "", main = "", frame.plot = FALSE)
+axis(1)
+```
+

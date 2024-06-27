@@ -1,0 +1,61 @@
+---
+title: "第三次作业"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## ggplot2
+
+1. 通过计算，有以下二重积分
+
+$$
+\int_{0}^1 \int_{0}^1 I(x^2 + y^2<1)dx dy = \frac{\pi}{4}.
+$$
+请根据上式构造合适的随机变量，通过蒙特卡洛方法估计圆周率，并基于ggplot2绘制以下图形。
+
+![](hw3-4.png)
+其中随机种子为123，n=5000, 右图是基于样本量为5000的样本绘制的。
+
+
+## 函数
+
+1. 请根据以下定义编写函数myfun，
+
+$$
+f(x) = \left\{ \begin{array}{cl} x-\lambda & \mathrm{if}~x > \lambda\\
+0 &\mathrm{if}~ |x| \leq \lambda\\
+x + \lambda &\mathrm{if}~ x< -\lambda\end{array}\right.
+$$
+其中输入为数值型向量或者标量`x`，正数 $\lambda$ 。绘制如下 $\lambda=1$ 时函数图像：
+![](hw3-5.png)
+
+2. 基于上述函数编写求解以下问题的算法（需要用到循环结构）
+
+$$
+\min_\beta L(\beta) = \frac{1}{2} \|y- X\beta\|^2 + \lambda \sum_{j=1}^p |\beta_j|,
+$$
+其中y 是一个n维的向量， X是一个 $n\times 2$ 的矩阵， $\beta$ 是一个2维的向量。算法描述如下：
+
+    - 在给定当前解 $hat\beta$ 时，对每一个维度 $j$ ,局部最优解为 
+$$
+    f\left(\frac{X_j^T(y-X\hat\beta + X_j\hat\beta_j)}{\|X_j\|^2}, \lambda/\|X_j\|^2\right)
+$$
+
+    - 遍历 $j=1, 2, 1, 2,... $ 直到前后两个解的平方差小于给定的误差（如 `1e-6` ）。
+    
+    
+最后通过模拟数据验证上述算法是否编写正确并输出最后的估计值，模拟数据代码如下：
+
+```{r}
+set.seed(123)
+beta <- c(1,0)
+n <- 1000
+x <- matrix(rnorm(n*2), n, 2)
+y <- x%*%beta + rnorm(n, 0, 0.5)
+```
+
+将求解流程编写成一个函数 `lasso_solver` ，输入至少包含 `(X, y, lambda)`，输出为 $\beta$ 最后的估计值。比较 $\lambda$ 取不同值时结果的区别。（还可以观察 $\beta$ 取不同初始值时结果的区别，不作为强制要求）
+
